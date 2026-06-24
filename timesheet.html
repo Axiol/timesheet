@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Générateur de timesheet</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root {
+    /* Colors */
+    --bg: #f5f6f8;
+    --card: #fff;
+    --line: #e2e4e8;
+    --ink: #1f2329;
+    --muted: #6b7280;
+    --accent: #2563eb;
+    --accent-hover: #1d4fd0;
+    --accent-soft: #eef3ff;
+    --weekend: #d9dbdf;
+    --weekend-ink: #8b8e94;
+
+    /* Radius */
+    --radius-sm: 6px;
+    --radius-md: 9px;
+    --radius-lg: 14px;
+
+    /* Elevation */
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.03);
+    --focus-ring: 0 0 0 3px var(--accent-soft);
+
+    /* Typography */
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    padding: 28px 18px;
+    font-family: var(--font-sans);
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+  }
+
+  h1 {
+    margin: 0 0 4px;
+    font-size: 21px;
+  }
+
+  .sub {
+    margin-bottom: 22px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  /* Cards */
+  .card {
+    margin-bottom: 18px;
+    padding: 20px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+  }
+
+  /* Form layout */
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .field {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 160px;
+  }
+
+  label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--muted);
+  }
+
+  input,
+  select {
+    padding: 9px 11px;
+    font-size: 14px;
+    color: var(--ink);
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+  }
+
+  input:focus,
+  select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: var(--focus-ring);
+  }
+
+  /* Toolbar */
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .toolbar .spacer {
+    flex: 1;
+  }
+
+  /* Buttons */
+  button {
+    padding: 9px 15px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--ink);
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: 0.12s;
+  }
+
+  button:hover {
+    background: #f0f1f3;
+  }
+
+  button.primary {
+    color: #fff;
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+
+  button.primary:hover {
+    background: var(--accent-hover);
+  }
+
+  button.ghost {
+    background: transparent;
+  }
+
+  /* Day grid */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+  }
+
+  .dow {
+    padding-bottom: 2px;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .day {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-height: 78px;
+    padding: 7px 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+  }
+
+  .day .num {
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .day.empty {
+    background: transparent;
+    border: none;
+  }
+
+  .day.weekend {
+    color: var(--weekend-ink);
+    background: var(--weekend);
+    border-color: var(--weekend);
+  }
+
+  .day.weekend .num {
+    color: var(--weekend-ink);
+  }
+
+  .day.worked {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+  }
+
+  /* AM/PM half-day toggles */
+  .halves {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-top: auto;
+  }
+
+  .half {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11.5px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .half input {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    padding: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+
+  /* Summary + hints */
+  .summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 22px;
+    font-size: 14px;
+  }
+
+  .summary b {
+    font-size: 22px;
+    color: var(--accent);
+  }
+
+  .hint {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* Signature preview */
+  .sig-prev {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .sig-prev img {
+    max-width: 160px;
+    max-height: 46px;
+    padding: 3px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+  }
+
+  /* Responsive */
+  @media (max-width: 720px) {
+    .grid {
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+    }
+
+    .day {
+      min-height: 64px;
+      padding: 5px 3px;
+    }
+
+    .half {
+      font-size: 10px;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Générateur de timesheet</h1>
+  <div class="sub">Coche les demi-journées travaillées, puis télécharge le PDF (A4 paysage).</div>
+
+  <div class="card">
+    <div class="row">
+      <div class="field">
+        <label>Nom (titre)</label>
+        <input id="name" value="DELANTE Arnaud">
+      </div>
+      <div class="field">
+        <label>Libellé de la ligne</label>
+        <input id="lineLabel" value="DELANTE Arnaud - RTBF">
+      </div>
+      <div class="field" style="max-width:140px">
+        <label>Mois</label>
+        <select id="month"></select>
+      </div>
+      <div class="field" style="max-width:120px">
+        <label>Année</label>
+        <input id="year" type="number" value="2026">
+      </div>
+    </div>
+    <div class="row" style="margin-top:14px;align-items:flex-end">
+      <div class="field">
+        <label>Signature consultant (optionnel — image PNG/JPG)</label>
+        <div class="sig-prev">
+          <input id="sigFile" type="file" accept="image/*" style="border:none;padding:0;font-size:13px">
+          <img id="sigPreview" style="display:none" alt="">
+          <button class="ghost" id="sigClear" style="display:none">Retirer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="toolbar">
+      <button id="allBtn" class="primary">Tout cocher (jours ouvrés)</button>
+      <button id="noneBtn">Tout décocher</button>
+      <div class="spacer"></div>
+      <div class="summary"><span>Total : <b id="totDays">0</b> j</span></div>
+    </div>
+    <div class="grid" id="dowRow"></div>
+    <div class="grid" id="grid" style="margin-top:6px"></div>
+  </div>
+
+  <div class="card">
+    <div class="toolbar" style="margin:0">
+      <div class="hint">Le PDF reprend le nom et le mois en titre, le tableau des jours (week-ends grisés) et deux cadres de signature.</div>
+      <div class="spacer"></div>
+      <button id="pdfBtn" class="primary">Télécharger le PDF</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const MONTHS=["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+const DOW=["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"];
+const monthSel=document.getElementById('month');
+MONTHS.forEach((m,i)=>{const o=document.createElement('option');o.value=i;o.textContent=m.charAt(0).toUpperCase()+m.slice(1);monthSel.appendChild(o);});
+const now=new Date();
+monthSel.value=now.getMonth();
+document.getElementById('year').value=now.getFullYear();
+
+// state: per day {am:bool, pm:bool}
+let state={};
+let sigDataUrl=null;
+
+function daysInMonth(y,m){return new Date(y,m+1,0).getDate();}
+// JS getDay: 0=Sun..6=Sat. Convert to Mon=0..Sun=6
+function dowMon(y,m,d){return (new Date(y,m,d).getDay()+6)%7;}
+function isWeekend(y,m,d){const w=dowMon(y,m,d);return w>=5;}
+
+function buildDowHeader(){
+  const r=document.getElementById('dowRow');r.innerHTML='';
+  DOW.forEach(d=>{const e=document.createElement('div');e.className='dow';e.textContent=d;r.appendChild(e);});
+}
+
+function build(){
+  const y=+document.getElementById('year').value, m=+monthSel.value;
+  const n=daysInMonth(y,m);
+  const grid=document.getElementById('grid');grid.innerHTML='';
+  // leading blanks to align first day under correct weekday
+  const lead=dowMon(y,m,1);
+  for(let i=0;i<lead;i++){const e=document.createElement('div');e.className='day empty';grid.appendChild(e);}
+  for(let d=1;d<=n;d++){
+    if(!state[d]) state[d]={am:false,pm:false};
+    const we=isWeekend(y,m,d);
+    const cell=document.createElement('div');
+    cell.className='day'+(we?' weekend':'');
+    const num=document.createElement('div');num.className='num';num.textContent=d;cell.appendChild(num);
+    if(!we){
+      const halves=document.createElement('div');halves.className='halves';
+      ['am','pm'].forEach(h=>{
+        const lab=document.createElement('label');lab.className='half';
+        const cb=document.createElement('input');cb.type='checkbox';cb.checked=state[d][h];
+        cb.addEventListener('change',()=>{state[d][h]=cb.checked;refresh();});
+        lab.appendChild(cb);lab.appendChild(document.createTextNode(h.toUpperCase()));
+        halves.appendChild(lab);
+      });
+      cell.appendChild(halves);
+    }else{
+      state[d]={am:false,pm:false};
+    }
+    cell.dataset.day=d;
+    grid.appendChild(cell);
+  }
+  refresh();
+}
+
+function dayValue(d){return (state[d]&&state[d].am?0.5:0)+(state[d]&&state[d].pm?0.5:0);}
+function totalDays(){let t=0;for(const d in state)t+=dayValue(d);return t;}
+
+function refresh(){
+  document.querySelectorAll('.day[data-day]').forEach(c=>{
+    const d=+c.dataset.day;
+    if(!c.classList.contains('weekend'))
+      c.classList.toggle('worked',dayValue(d)>0);
+  });
+  const t=totalDays();
+  document.getElementById('totDays').textContent=Number.isInteger(t)?t:t.toFixed(1);
+}
+
+document.getElementById('allBtn').onclick=()=>{
+  const y=+document.getElementById('year').value, m=+monthSel.value, n=daysInMonth(y,m);
+  for(let d=1;d<=n;d++){if(!isWeekend(y,m,d))state[d]={am:true,pm:true};}
+  build();
+};
+document.getElementById('noneBtn').onclick=()=>{for(const d in state)state[d]={am:false,pm:false};build();};
+monthSel.onchange=()=>{state={};build();};
+document.getElementById('year').onchange=()=>{state={};build();};
+
+// signature upload
+const sigFile=document.getElementById('sigFile'),sigPrev=document.getElementById('sigPreview'),sigClear=document.getElementById('sigClear');
+sigFile.onchange=e=>{
+  const f=e.target.files[0];if(!f)return;
+  const rd=new FileReader();rd.onload=()=>{sigDataUrl=rd.result;sigPrev.src=sigDataUrl;sigPrev.style.display='';sigClear.style.display='';};
+  rd.readAsDataURL(f);
+};
+sigClear.onclick=()=>{sigDataUrl=null;sigFile.value='';sigPrev.style.display='none';sigClear.style.display='none';};
+
+// ---------- PDF ----------
+function genPDF(){
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+  const PW=297,PH=210,ML=12,MR=12;
+  const y=+document.getElementById('year').value, m=+monthSel.value, n=daysInMonth(y,m);
+  const name=document.getElementById('name').value.trim();
+  const lineLabel=document.getElementById('lineLabel').value.trim();
+  const total=totalDays();
+  const totStr=(Number.isInteger(total)?total:total.toFixed(1))+'j';
+  const mm=String(m+1).padStart(2,'0');
+
+  // Title
+  doc.setFont('helvetica','bold');doc.setFontSize(17);doc.setTextColor(30,35,41);
+  doc.text(`${name} ${mm}/${y}`,ML,20);
+
+  // Table geometry
+  const tableTop=34;
+  const labelW=58, totalW=13;
+  const daysW=(PW-ML-MR)-labelW-totalW;
+  const colW=daysW/n;
+  const x0=ML;
+  const xTotal=x0+labelW;
+  const xDays=xTotal+totalW;
+  const hHead=8, hMain=13, hTot=8;
+  const yHead=tableTop, yMain=yHead+hHead, yTot=yMain+hMain;
+  const tableBottom=yTot+hTot;
+
+  doc.setDrawColor(210,212,216);doc.setLineWidth(0.2);
+
+  // weekend grey blocks (full height of body rows)
+  doc.setFillColor(217,219,223);
+  for(let d=1;d<=n;d++){
+    if(isWeekend(y,m,d)){
+      const cx=xDays+(d-1)*colW;
+      doc.rect(cx,yHead,colW,(tableBottom-yHead),'F');
+    }
+  }
+
+  // Outer + horizontal lines
+  doc.setDrawColor(200,202,206);
+  doc.line(x0,yHead,x0+labelW+totalW+daysW,yHead);
+  doc.line(x0,yMain,x0+labelW+totalW+daysW,yMain);
+  doc.line(x0,yTot,x0+labelW+totalW+daysW,yTot);
+  doc.line(x0,tableBottom,x0+labelW+totalW+daysW,tableBottom);
+
+  // Vertical separators
+  const xRight=xDays+n*colW;
+  [x0,xTotal,xDays,xRight].forEach(xx=>doc.line(xx,yHead,xx,tableBottom));
+  // day column separators
+  doc.setDrawColor(225,227,231);
+  for(let d=1;d<=n;d++){const cx=xDays+d*colW;doc.line(cx,yHead,cx,tableBottom);}
+
+  const cellCenter=(d)=>xDays+(d-1)*colW+colW/2;
+
+  // Header: day numbers (skip weekends)
+  doc.setFont('helvetica','bold');doc.setTextColor(50,54,60);
+  doc.setFontSize(colW<6.5?6.5:8);
+  for(let d=1;d<=n;d++){
+    if(!isWeekend(y,m,d)) doc.text(String(d),cellCenter(d),yHead+5.4,{align:'center'});
+  }
+
+  // Main row left cells
+  doc.setFont('helvetica','normal');doc.setTextColor(40,44,50);doc.setFontSize(9);
+  doc.text(lineLabel,x0+3,yMain+hMain/2+1);
+  doc.setFont('helvetica','bold');
+  doc.text(totStr,xTotal+totalW/2,yMain+hMain/2+1,{align:'center'});
+
+  // Main row AM/PM
+  doc.setFont('helvetica','normal');doc.setFontSize(colW<6.5?5.6:6.6);doc.setTextColor(40,44,50);
+  for(let d=1;d<=n;d++){
+    if(isWeekend(y,m,d))continue;
+    const cx=cellCenter(d);
+    const am=state[d]&&state[d].am, pm=state[d]&&state[d].pm;
+    if(am) doc.text('AM',cx,yMain+5,{align:'center'});
+    if(pm) doc.text('PM',cx,yMain+9.6,{align:'center'});
+  }
+
+  // Total row
+  doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(30,35,41);
+  doc.text('Total',x0+3,yTot+hTot/2+1.2);
+  doc.text(totStr,xTotal+totalW/2,yTot+hTot/2+1.2,{align:'center'});
+  doc.setFont('helvetica','normal');doc.setFontSize(colW<6.5?6.5:8);
+  for(let d=1;d<=n;d++){
+    if(isWeekend(y,m,d))continue;
+    const v=dayValue(d);if(v<=0)continue;
+    const s=Number.isInteger(v)?String(v):v.toFixed(1).replace(/\.0$/,'');
+    doc.text(s,cellCenter(d),yTot+hTot/2+1.2,{align:'center'});
+  }
+
+  // Signatures
+  const sigTop=tableBottom+22;
+  const boxW=120, boxH=46, gap=24;
+  const bx1=ML, bx2=ML+boxW+gap;
+  doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(90,95,102);
+  doc.text('Signature du consultant',bx1,sigTop-4);
+  doc.text('Signature du client',bx2,sigTop-4);
+  doc.setDrawColor(180,183,188);doc.setLineWidth(0.3);
+  doc.rect(bx1,sigTop,boxW,boxH);
+  doc.rect(bx2,sigTop,boxW,boxH);
+
+  if(sigDataUrl){
+    try{
+      const im=new Image();im.src=sigDataUrl;
+      // draw scaled inside box
+      const maxW=boxW-12,maxH=boxH-10;
+      let iw=maxW,ih=maxH;
+      // we don't know natural ratio synchronously here reliably; use a sensible default region
+      doc.addImage(sigDataUrl,'PNG',bx1+8,sigTop+6,Math.min(maxW,60),Math.min(maxH,28));
+    }catch(e){}
+  }
+
+  // Téléchargement forcé (évite l'ouverture dans un onglet sur certains navigateurs)
+  const fname=`timesheet_${name.replace(/\s+/g,'_')}_${mm}-${y}.pdf`;
+  const blob=doc.output('blob');
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=fname;
+  document.body.appendChild(a);a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),1500);
+}
+
+document.getElementById('pdfBtn').onclick=()=>{
+  if(sigDataUrl){
+    // ensure image is loaded so addImage has dimensions
+    const probe=new Image();probe.onload=genPDF;probe.onerror=genPDF;probe.src=sigDataUrl;
+  }else genPDF();
+};
+
+buildDowHeader();
+build();
+</script>
+</body>
+</html>
