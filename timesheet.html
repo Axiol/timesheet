@@ -511,8 +511,8 @@ function genPDF(){
   doc.setFont('helvetica','normal');doc.setFontSize(colW<6.5?6.5:8);
   for(let d=1;d<=n;d++){
     if(isWeekend(y,m,d))continue;
-    const v=dayValue(d);if(v<=0)continue;
-    const s=Number.isInteger(v)?String(v):v.toFixed(1).replace(/\.0$/,'');
+    const v=dayValue(d);
+    const s=v<=0?'0':(Number.isInteger(v)?String(v):v.toFixed(1).replace(/\.0$/,''));
     doc.text(s,cellCenter(d),yTot+hTot/2+1.2,{align:'center'});
   }
 
